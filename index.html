@@ -1,0 +1,1787 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#F7F6F3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
+<meta name="description" content="トレーニングを長く続けるための目標アプリ">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="みちしるべ">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<style>
+:root{
+  color-scheme:light;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+html,body{margin:0}
+body{font:14px system-ui,-apple-system,"Segoe UI",sans-serif}
+img{max-width:100%}
+[hidden]{display:none !important}
+</style>
+</head>
+<body>
+<title>みちしるべ</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Archivo:wght@500;700&display=swap">
+<style>
+/* 罫線で区切った1枚の紙。カードは使わず、行の揃え・余白・文字の重みで階層をつくる。
+   1画面に大きい要素は1つだけ置く（今日なら達成数）。色は状態だけを示し、識別には使わない。 */
+:root{
+  --paper:#F7F6F3;
+  --ink:#17171A;
+  --ink-2:#4B4B52;
+  --ink-3:#86868F;
+  --rule:#E3E1DB;
+  --rule-2:#CCC9C1;
+  --accent:#1F4D3C;
+  --alert:#A6342A;
+  --f-text:"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic UI",sans-serif;
+  --f-num:"Archivo","Noto Sans JP",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --paper:#121212;
+    --ink:#EDEDEA;
+    --ink-2:#AEAEA9;
+    --ink-3:#7B7B77;
+    --rule:#2A2A28;
+    --rule-2:#3C3C39;
+    --accent:#7DB296;
+    --alert:#E0806F;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --paper:#121212;
+  --ink:#EDEDEA;
+  --ink-2:#AEAEA9;
+  --ink-3:#7B7B77;
+  --rule:#2A2A28;
+  --rule-2:#3C3C39;
+  --accent:#7DB296;
+  --alert:#E0806F;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--paper);color:var(--ink);
+  font-family:var(--f-text);font-size:15px;line-height:1.75;
+  font-weight:400;-webkit-text-size-adjust:100%;
+}
+button{font-family:inherit;cursor:pointer;color:inherit;background:none;border:0;padding:0}
+input,select{font-family:inherit;color:var(--ink)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+
+.wrap{max-width:520px;margin:0 auto;padding:0 20px 92px}
+
+/* ---------- 見出しバー ---------- */
+.bar{
+  display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  padding:16px 0 13px;border-bottom:1px solid var(--rule-2);
+}
+.bar .name{font-size:14px;font-weight:700;letter-spacing:.04em}
+.bar .state{font-size:11.5px;color:var(--ink-3);white-space:nowrap}
+
+/* ---------- 焦点：今日の達成数 ---------- */
+.hero{padding:26px 0 24px;border-bottom:1px solid var(--rule)}
+.hero .day{font-size:12.5px;color:var(--ink-3);letter-spacing:.02em}
+.hero .fig{
+  display:flex;align-items:baseline;gap:3px;margin:2px 0 0;
+  font-family:var(--f-num);font-variant-numeric:tabular-nums;line-height:1;
+}
+.hero .fig b{font-size:62px;font-weight:700;letter-spacing:-.02em}
+.hero .fig span{font-size:27px;font-weight:500;color:var(--ink-3)}
+.hero .cap{font-size:13px;color:var(--ink-2);margin-top:7px}
+.hero.all .fig b{color:var(--accent)}
+
+/* ---------- セクション見出し ---------- */
+.lab{
+  display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  padding:26px 0 9px;border-bottom:1px solid var(--rule-2);
+  font-size:12px;color:var(--ink-3);
+}
+.lab .act{font-size:12.5px;color:var(--ink);font-weight:500}
+
+/* ---------- 行 ---------- */
+.row{
+  display:flex;align-items:flex-start;gap:13px;
+  padding:14px 0;border-bottom:1px solid var(--rule);
+}
+.row:last-child{border-bottom:0}
+.row .box{
+  flex:0 0 auto;width:22px;height:22px;margin-top:4px;
+  border:1.5px solid var(--rule-2);border-radius:3px;
+  display:grid;place-items:center;color:transparent;font-size:13px;line-height:1;
+}
+.row.on .box{background:var(--accent);border-color:var(--accent);color:var(--paper)}
+.row.on.hit .box{animation:tick .18s ease-out both}
+@keyframes tick{from{transform:scale(.82)}to{transform:scale(1)}}
+.row .mid{flex:1 1 auto;min-width:0}
+.row .task{font-size:15.5px;font-weight:500;line-height:1.55;overflow-wrap:anywhere}
+.row.on .task{color:var(--ink-3);text-decoration:line-through;text-decoration-thickness:1px}
+.row .from{font-size:12.5px;color:var(--ink-3);line-height:1.6;overflow-wrap:anywhere}
+.row .from .late{color:var(--alert)}
+.row .why{
+  font-size:12.5px;color:var(--ink-2);line-height:1.7;margin-top:5px;
+  padding-left:11px;border-left:1px solid var(--rule-2);overflow-wrap:anywhere;
+}
+.row .cnt{
+  flex:0 0 auto;margin-top:4px;text-align:right;
+  font-family:var(--f-num);font-variant-numeric:tabular-nums;
+  font-size:13px;color:var(--ink-3);letter-spacing:.01em;
+}
+.row .cnt em{font-style:normal;color:var(--ink);font-weight:500}
+
+/* ---------- 目標 ---------- */
+.goal{padding:22px 0;border-bottom:1px solid var(--rule-2)}
+.goal:last-child{border-bottom:0}
+.goal.off{opacity:.55}
+.goal .gh{display:flex;align-items:baseline;gap:9px}
+.goal .gt{
+  flex:1 1 auto;min-width:0;font-size:19px;font-weight:700;line-height:1.5;
+  letter-spacing:.01em;overflow-wrap:anywhere;
+}
+.goal .gt .mk{font-size:14px;font-weight:400;color:var(--ink-3);margin-right:5px}
+.goal .gs{flex:0 0 auto;font-size:12px;color:var(--ink-3)}
+.goal .gs.bad{color:var(--alert)}
+.goal .gs.good{color:var(--accent)}
+.goal .why{font-size:13px;color:var(--ink-2);margin-top:3px;overflow-wrap:anywhere}
+.goal .meta{font-size:12px;color:var(--ink-3);margin-top:2px}
+
+/* 軌道：罫線で引く */
+.tr{position:relative;height:3px;background:var(--rule);margin:18px 0 0}
+.tr .cur{position:absolute;left:0;top:0;height:3px;background:var(--accent)}
+.tr .cur.bad{background:var(--alert)}
+.tr .plan{position:absolute;top:-5px;width:1px;height:13px;background:var(--ink-2)}
+.trl{
+  display:flex;justify-content:space-between;gap:12px;margin-top:7px;
+  font-family:var(--f-num);font-variant-numeric:tabular-nums;
+  font-size:11.5px;color:var(--ink-3);
+}
+.trl b{color:var(--ink);font-weight:500}
+.trl .pl{color:var(--ink-2)}
+.say{font-size:13px;color:var(--ink-2);line-height:1.8;margin:11px 0 0}
+.say b{color:var(--ink);font-weight:700}
+.say .bad{color:var(--alert);font-weight:700}
+
+.figs{display:flex;flex-wrap:wrap;gap:22px;margin:16px 0 0}
+.figs div{display:flex;flex-direction:column;gap:1px}
+.figs .k{font-size:11.5px;color:var(--ink-3);line-height:1.5}
+.figs .v{
+  font-family:var(--f-num);font-variant-numeric:tabular-nums;
+  font-size:18px;font-weight:500;line-height:1.3;
+}
+.figs .v i{font-style:normal;font-size:11.5px;color:var(--ink-3);margin-left:1px}
+
+.spark{display:block;width:100%;max-width:100%;height:auto;margin:16px 0 0}
+.sparkl{
+  display:flex;justify-content:space-between;gap:10px;margin-top:4px;
+  font-family:var(--f-num);font-size:11px;color:var(--ink-3);
+}
+.plan-note{font-size:12px;color:var(--ink-3);margin:14px 0 0;line-height:1.7}
+.logs{margin:14px 0 0;display:flex;flex-direction:column;gap:4px}
+.logs .l{font-size:12px;color:var(--ink-3);line-height:1.7;display:flex;gap:9px}
+.logs .l time{flex:0 0 auto;font-family:var(--f-num);color:var(--ink-2)}
+.acts{display:flex;flex-wrap:wrap;gap:9px;margin:16px 0 0}
+
+/* ---------- 注意書き ---------- */
+.warn{
+  padding:14px 0;border-bottom:1px solid var(--rule-2);
+  font-size:13px;color:var(--ink-2);line-height:1.8;
+}
+.warn b{color:var(--alert);font-weight:700}
+.warn .acts{margin-top:10px}
+
+/* ---------- 空 ---------- */
+.intro{padding:30px 0 10px}
+.intro h2{font-size:21px;font-weight:700;margin:0;line-height:1.55;letter-spacing:.01em}
+.intro p{margin:11px 0 0;color:var(--ink-2);font-size:14px}
+.intro ol{margin:16px 0 0;padding-left:1.25em;color:var(--ink-2);font-size:13.5px}
+.intro ol li{margin-bottom:5px}
+.intro ol b{color:var(--ink);font-weight:500}
+.picks{margin:22px 0 0;border-top:1px solid var(--rule-2)}
+.pick{
+  display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  width:100%;text-align:left;padding:14px 0;border-bottom:1px solid var(--rule);
+  font-size:15px;font-weight:500;
+}
+.pick span{font-size:12px;color:var(--ink-3);font-weight:400;white-space:nowrap}
+
+/* ---------- ボタン ---------- */
+.btn{
+  border:1px solid var(--ink);background:var(--ink);color:var(--paper);
+  border-radius:3px;padding:11px 17px;font-size:14px;font-weight:500;min-height:44px;
+}
+.btn.q{background:transparent;color:var(--ink);border-color:var(--rule-2)}
+.btn.d{background:transparent;color:var(--alert);border-color:var(--alert)}
+.btn.s{min-height:36px;padding:7px 13px;font-size:13px}
+.btn.w{width:100%}
+.link{font-size:13px;color:var(--ink);font-weight:500;text-decoration:underline;text-underline-offset:3px}
+.link.q{color:var(--ink-3);font-weight:400}
+
+/* ---------- 入力：枠で囲まず下罫線だけ ---------- */
+.sheet{
+  position:fixed;inset:0;z-index:20;background:rgba(18,18,18,.5);
+  display:flex;align-items:flex-end;justify-content:center;
+}
+.sheet[hidden]{display:none}
+.panel{
+  background:var(--paper);width:100%;max-width:520px;max-height:92vh;overflow-y:auto;
+  border-radius:8px 8px 0 0;padding:20px 20px 28px;
+}
+.panel h2{font-size:17px;font-weight:700;margin:0 0 4px;letter-spacing:.02em}
+.f{display:flex;flex-direction:column;gap:3px;padding:13px 0 0}
+.f > label{font-size:12px;color:var(--ink-3);line-height:1.6}
+.f input[type=text],
+.f input[type=number],
+.f input[type=date],
+.f select{
+  border:0;border-bottom:1px solid var(--rule-2);border-radius:0;
+  background:transparent;padding:8px 1px;min-height:42px;width:100%;
+  font-size:16px;font-weight:500;
+}
+.f select{
+  -webkit-appearance:none;appearance:none;
+  background-image:linear-gradient(45deg,transparent 50%,var(--ink-3) 50%),linear-gradient(135deg,var(--ink-3) 50%,transparent 50%);
+  background-position:calc(100% - 11px) 50%,calc(100% - 6px) 50%;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:24px;
+}
+.f input:focus,.f select:focus{outline:none;border-bottom-color:var(--ink)}
+.f input::placeholder{color:var(--ink-3);font-weight:400}
+.f .tip{margin:5px 0 0;font-size:12px;color:var(--ink-3);line-height:1.7}
+.f.num input{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.pair{display:flex;gap:16px;flex-wrap:wrap}
+.pair > *{flex:1 1 118px;min-width:0}
+
+/* 選択は帯ではなくタブで示す */
+.pickseg{display:flex;gap:20px;border-bottom:1px solid var(--rule);margin-top:4px}
+.pickseg button{
+  padding:9px 0;font-size:14px;color:var(--ink-3);
+  border-bottom:2px solid transparent;margin-bottom:-1px;
+}
+.pickseg button[aria-pressed="true"]{color:var(--ink);font-weight:500;border-bottom-color:var(--ink)}
+.go{display:flex;gap:12px;margin:24px 0 0}
+.go .btn{flex:1}
+
+/* ---------- ふりかえり ---------- */
+.rv{padding:20px 0;border-bottom:1px solid var(--rule-2)}
+.rv:last-of-type{border-bottom:0}
+.rv .rt{font-size:16px;font-weight:700;line-height:1.5;overflow-wrap:anywhere}
+.rv .rt em{font-style:normal;font-size:11.5px;font-weight:400;color:var(--accent);margin-left:8px}
+.old{padding:14px 0;border-bottom:1px solid var(--rule)}
+.old:last-child{border-bottom:0}
+.old .ow{font-family:var(--f-num);font-size:11.5px;color:var(--ink-3)}
+.old .oi{font-size:13px;color:var(--ink-2);line-height:1.75;overflow-wrap:anywhere}
+.old .oi b{color:var(--ink);font-weight:500}
+.old .oi i{font-style:normal;color:var(--ink-3);margin:0 6px}
+
+/* ---------- 下部ナビ ---------- */
+.nav{
+  position:fixed;left:0;right:0;bottom:0;z-index:10;
+  background:var(--paper);border-top:1px solid var(--rule-2);
+  display:flex;justify-content:center;
+  padding-bottom:env(safe-area-inset-bottom,0);
+}
+.nav .in{display:flex;width:100%;max-width:520px;padding:0 20px}
+.nav button{
+  flex:1;padding:14px 4px 15px;font-size:13px;color:var(--ink-3);
+  border-top:2px solid transparent;margin-top:-1px;position:relative;min-height:52px;
+}
+.nav button[aria-selected="true"]{color:var(--ink);font-weight:700;border-top-color:var(--ink)}
+.nav .bell{
+  display:inline-block;width:5px;height:5px;border-radius:50%;
+  background:var(--alert);vertical-align:3px;margin-left:5px;
+}
+
+/* ---------- 立ち上げの28日：目盛りで引く ---------- */
+.ramp{padding:15px 0;border-bottom:1px solid var(--rule)}
+.ramp .rh{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.ramp .rn{font-size:14.5px;font-weight:500;overflow-wrap:anywhere}
+.ramp .rh.sub{margin-top:7px}
+.ramp .rd{font-family:var(--f-num);font-variant-numeric:tabular-nums;font-size:11.5px;color:var(--ink-3);white-space:nowrap}
+.ruler{display:flex;align-items:flex-end;gap:2px;height:15px;margin:11px 0 0;border-bottom:1px solid var(--rule-2)}
+.ruler i{flex:1 1 0;min-width:0;display:block;height:0;background:transparent}
+.ruler i.full{height:14px;background:var(--ink)}
+.ruler i.half{height:7px;background:var(--ink-3)}
+.ruler i.miss{height:3px;background:var(--rule-2)}
+.rampnote{font-size:12.5px;color:var(--ink-3);line-height:1.8;padding:13px 0 0}
+
+/* ---------- 行の追加要素 ---------- */
+.row .cue{font-size:12px;color:var(--ink-3);line-height:1.6;overflow-wrap:anywhere}
+.row.half .box{background:transparent;border-color:var(--ink-3);color:var(--ink-3)}
+.row.half .task{text-decoration:none;color:var(--ink-2)}
+.row .alt{margin-top:7px}
+.row .fix{display:flex;flex-wrap:wrap;gap:16px;margin-top:5px}
+.row .fix .link{padding:7px 0;min-height:34px}
+
+/* ---------- 直近7日の訂正 ---------- */
+.days{display:flex;gap:3px;margin:12px 0 0}
+.day7{
+  flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding:6px 0 8px;border:1px solid var(--rule);border-radius:3px;
+}
+.day7 .dd{font-family:var(--f-num);font-size:9.5px;color:var(--ink-3);line-height:1}
+.mrow{display:flex;gap:10px;align-items:flex-end;padding:13px 0;border-bottom:1px solid var(--rule)}
+.mrow:last-of-type{border-bottom:0}
+.mrow .f{flex:1 1 auto;min-width:0;padding:0}
+.mrow .f > label{font-size:11.5px}
+.mrow .btn{flex:0 0 auto}
+.day7 .dm{width:10px;height:10px;border-radius:2px;box-shadow:inset 0 0 0 1px var(--rule-2)}
+.day7.f .dm{background:var(--ink);box-shadow:none}
+.day7.h .dm{background:var(--ink-3);box-shadow:none}
+.day7.t{border-color:var(--ink)}
+.fixnote{font-size:12px;color:var(--ink-3);line-height:1.75;margin:9px 0 0}
+
+.view[hidden]{display:none}
+.note{margin:28px 0 10px;font-size:12px;color:var(--ink-3);line-height:1.8}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation:none !important;transition:none !important}
+}
+</style>
+
+<div class="wrap">
+  <header class="bar">
+    <span class="name">みちしるべ</span>
+    <span class="state" id="state">読み込み中</span>
+  </header>
+
+  <div id="alerts"></div>
+
+  <section class="view" id="view-today"><div id="today"></div></section>
+  <section class="view" id="view-goals" hidden><div id="goals"></div></section>
+  <section class="view" id="view-review" hidden><div id="review"></div></section>
+
+  <p class="note" id="note"></p>
+</div>
+
+<nav class="nav" aria-label="画面">
+  <div class="in">
+    <button type="button" data-tab="today" aria-selected="true">今日</button>
+    <button type="button" data-tab="goals" aria-selected="false">目標</button>
+    <button type="button" data-tab="review" aria-selected="false">ふりかえり<span class="bell" id="bell" hidden></span></button>
+  </div>
+</nav>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="ph">
+    <h2 id="ph">目標を追加</h2>
+
+    <div class="f">
+      <label for="f-title">目標</label>
+      <input type="text" id="f-title" maxlength="40" placeholder="週3でジムに通う">
+    </div>
+
+    <div class="f">
+      <label for="f-why">なぜ</label>
+      <input type="text" id="f-why" maxlength="60" placeholder="やる気に頼らない生活にする">
+      <p class="tip">ジムに行きたくない日に、最初に読む言葉です。</p>
+    </div>
+
+    <div class="f">
+      <label>測りかた</label>
+      <div class="pickseg" id="f-kind">
+        <button type="button" data-kind="action" aria-pressed="true">こなした回数</button>
+        <button type="button" data-kind="measure" aria-pressed="false">数値の変化</button>
+      </div>
+      <p class="tip" id="f-kindtip">「週3でジムに通う」のように、積み上げた回数で測ります。</p>
+    </div>
+
+    <div id="f-mwrap" hidden>
+      <div class="pair">
+        <div class="f num">
+          <label for="f-start">いま</label>
+          <input type="number" id="f-start" step="any" value="60">
+        </div>
+        <div class="f num">
+          <label for="f-target">目標</label>
+          <input type="number" id="f-target" step="any" value="80">
+        </div>
+        <div class="f">
+          <label for="f-unit">単位</label>
+          <input type="text" id="f-unit" maxlength="6" placeholder="kg">
+        </div>
+      </div>
+    </div>
+
+    <div class="f">
+      <label for="f-doing">今日の1手</label>
+      <input type="text" id="f-doing" maxlength="60" placeholder="ジムに行って1種目でも触る">
+      <p class="tip">重いメニューではなく、調子が悪い日でもできる最小単位にします。</p>
+    </div>
+
+    <div class="f">
+      <label for="f-floor">最低ライン</label>
+      <input type="text" id="f-floor" maxlength="60" placeholder="ジムに入って着替えるだけ">
+      <p class="tip">どうしても無理な日の逃げ道です。これだけやれば継続は途切れません。行動が単純なほど習慣になりやすいという研究結果があります。</p>
+    </div>
+
+    <div class="f">
+      <label for="f-cue">いつ・どこで</label>
+      <input type="text" id="f-cue" maxlength="40" placeholder="仕事の帰り、駅前のジム">
+      <p class="tip">場所と時間を固定することは、習慣の成立を予測する要因のひとつです。</p>
+    </div>
+
+    <div class="pair">
+      <div class="f num">
+        <label for="f-weekly">週に何回</label>
+        <input type="number" id="f-weekly" min="1" max="7" step="1" value="3">
+      </div>
+      <div class="f">
+        <label for="f-due">期限</label>
+        <input type="date" id="f-due">
+      </div>
+    </div>
+    <div class="f">
+      <p class="tip">新規ジム会員の追跡研究では、習慣として定着する最低ラインは週4回を6週間でした（小規模な研究なので目安です）。週3回以下にするなら、最低ラインを使って日数を稼ぐほうが続きます。</p>
+    </div>
+
+    <div class="f">
+      <label for="f-retire">撤退条件</label>
+      <select id="f-retire">
+        <option value="3">3週連続ゼロでやめる</option>
+        <option value="4" selected>4週連続ゼロでやめる</option>
+        <option value="6">6週連続ゼロでやめる</option>
+        <option value="0">決めない</option>
+      </select>
+      <p class="tip">先に決めておくと、だらだら続く罪悪感を切り離せます。</p>
+    </div>
+
+    <div class="go">
+      <button type="button" class="btn q" id="f-cancel">やめる</button>
+      <button type="button" class="btn" id="f-save">保存</button>
+    </div>
+    <div class="acts"><button type="button" class="link q" id="f-delete" hidden>この目標と記録を削除する</button></div>
+  </div>
+</div>
+<script>
+(function(){
+  "use strict";
+
+  /* ================= 定数 ================= */
+  var DOW = ["日","月","火","水","木","金","土"];
+  var STARTERS = [
+    {title:"週4でジムに通う", why:"やる気に頼らない生活にする",
+     kind:"action", weekly:4, doing:"ジムに行って1種目でも触る",
+     floor:"ジムに入って着替えるだけ", cue:"仕事の帰り、駅前のジム", days:365},
+    {title:"ベンチプレス80kg", why:"続けた年数を数字で残す",
+     kind:"measure", startValue:60, targetValue:80, unit:"kg", weekly:3,
+     doing:"胸の日のメニューをやりきる",
+     floor:"ベンチに寝て空のバーを10回", cue:"火曜と金曜の朝", days:180},
+    {title:"体脂肪率を18%にする", why:"去年の服をもう一度着る",
+     kind:"measure", startValue:24, targetValue:18, unit:"%", weekly:4,
+     doing:"有酸素を30分足す",
+     floor:"ひと駅ぶん歩く", cue:"夕食のあと", days:120},
+    {title:"ハーフマラソン完走", why:"走れる身体のまま歳をとりたい",
+     kind:"action", weekly:4, doing:"5km走る",
+     floor:"シューズを履いて外に出る", cue:"起きたらすぐ、家の前から", days:150}
+  ];
+  var CACHE_KEY = "michishirube-v1";
+  var ACT_MONTHS = 6;          // 今月＋過去5ヶ月を実行記録の読み込み範囲にする
+  var SPARK_W = 280, SPARK_H = 62;
+
+  /* ================= 日付（すべて端末ローカル時間） ================= */
+  function pad2(n){ return (n < 10 ? "0" : "") + n; }
+  function today(){ var n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
+  function addDays(d, n){ var x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() + n); return x; }
+  function addMonths(d, n){ return new Date(d.getFullYear(), d.getMonth() + n, 1); }
+  function ymd(d){ return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()); }
+  function parseYmd(s){
+    var p = String(s || "").split("-");
+    var y = Number(p[0]), m = Number(p[1]), d = Number(p[2]);
+    if(!y || !m || !d) return null;
+    return new Date(y, m - 1, d);
+  }
+  function monthKey(d){ return d.getFullYear() + "-" + pad2(d.getMonth() + 1); }
+  function diffDays(a, b){ return Math.round((b.getTime() - a.getTime()) / 86400000); }
+  function weekStart(d){ return addDays(d, -((d.getDay() + 6) % 7)); }   // 月曜はじまり
+  function md(d){ return (d.getMonth() + 1) + "月" + d.getDate() + "日"; }
+  function mdShort(d){ return (d.getMonth() + 1) + "/" + d.getDate(); }
+  function clamp(v, lo, hi){ return v < lo ? lo : (v > hi ? hi : v); }
+  function round1(v){ return Math.round(v * 10) / 10; }
+
+  /* ================= 状態 ================= */
+  var goals = [];        // [{id, ...}]
+  var acts = {};         // acts["2026-11"] = {"goalId|07": 1}
+  var measures = {};     // measures[goalId] = {"2026-11-07": 68.2}
+  var reviews = {};      // reviews["2026-11-02"] = {goalId: {p, stuck, change}}
+  var monthsLoaded = {};
+  var dirtyActs = {};
+  var flushTimers = {};
+  var pending = 0;
+  var lastError = "";
+  var tab = "today";
+  var shown = {};        // 目標の詳細を開いているか
+  var hit = null;        // 直前に押した行（印のアニメーション用）
+  var confirmed = false; // 削除の2度押し
+  var shownDay = "";     // いま画面に描いている日付
+  var db = null;         // db capability（無ければ null のまま）
+  var storage = "local"; // "db" | "local"
+
+  var el = {
+    state: document.getElementById("state"),
+    alerts: document.getElementById("alerts"),
+    today: document.getElementById("today"),
+    goals: document.getElementById("goals"),
+    review: document.getElementById("review"),
+    note: document.getElementById("note"),
+    bell: document.getElementById("bell"),
+    sheet: document.getElementById("sheet")
+  };
+
+  /* ================= 記録の読み書き ================= */
+  function actKey(gid, d){ return gid + "|" + pad2(d.getDate()); }
+  // 記録の値: 1 = フル達成、2 = 最低ラインのみ。どちらも「その日やった」として数える
+  function actVal(gid, d){
+    var m = acts[monthKey(d)];
+    var v = m ? m[actKey(gid, d)] : 0;
+    return v ? Number(v) : 0;
+  }
+  function actOn(gid, d){ return actVal(gid, d) ? 1 : 0; }
+  function countActs(gid, from, to){
+    if(!from || !to || to < from) return 0;
+    var n = 0, d = from, guard = 0;
+    while(d <= to && guard++ < 1200){ n += actOn(gid, d); d = addDays(d, 1); }
+    return n;
+  }
+  function countFull(gid, from, to){
+    if(!from || !to || to < from) return 0;
+    var n = 0, d = from, guard = 0;
+    while(d <= to && guard++ < 1200){ if(actVal(gid, d) === 1) n++; d = addDays(d, 1); }
+    return n;
+  }
+  function setAct(gid, d, v){
+    var mk = monthKey(d);
+    if(!acts[mk]) acts[mk] = {};
+    // 取り消しはキーの削除ではなく 0 を明示して書く。
+    // 削除だと保存するデータが空になり、同期で記録が戻ることがある
+    var key = actKey(gid, d);
+    acts[mk][key] = v ? Number(v) : 0;
+    holdAct(mk, key, acts[mk][key]);
+    dirtyActs[mk] = true;
+    writeCache();
+    scheduleFlush(mk);
+  }
+  /* ---- 同期の上書き対策 ----
+     保存した直後は、届いた同期より自分の変更を優先する。
+     完了通知のあとに古い内容の同期が届いて、変更が戻るのを防ぐため。 */
+  var HOLD_MS = 15000;
+  var heldActs = {};                                      // heldActs[月][キー] = {v, at}
+  var heldDocs = { goals:{}, measures:{}, reviews:{} };    // id -> {v（null は削除）, at}
+
+  function own(o, k){ return Object.prototype.hasOwnProperty.call(o, k); }
+  function copy(o){ return JSON.parse(JSON.stringify(o)); }
+
+  function holdAct(mk, key, v){
+    if(!heldActs[mk]) heldActs[mk] = {};
+    heldActs[mk][key] = { v: v, at: Date.now() };
+  }
+  function mergeActs(mk, incoming){
+    var out = {}, k;
+    for(k in incoming){ if(own(incoming, k)) out[k] = Number(incoming[k] || 0); }
+    var h = heldActs[mk] || {}, now = Date.now();
+    for(k in h){
+      if(!own(h, k)) continue;
+      if(now - h[k].at < HOLD_MS) out[k] = h[k].v;
+      else delete h[k];
+    }
+    return out;
+  }
+  function holdDoc(kind, id, v){ heldDocs[kind][id] = { v: v, at: Date.now() }; }
+  function mergeDocs(kind, map){
+    var h = heldDocs[kind], now = Date.now(), k;
+    for(k in h){
+      if(!own(h, k)) continue;
+      if(now - h[k].at >= HOLD_MS){ delete h[k]; continue; }
+      if(h[k].v === null) delete map[k];
+      else map[k] = copy(h[k].v);
+    }
+    return map;
+  }
+  function flushActs(mk){
+    delete flushTimers[mk];
+    if(!(storage === "db" && db)){ delete dirtyActs[mk]; return; }
+    pending++; renderAlerts();
+    // 書き込み完了ではなく、同じ内容が同期で返ってきた時点で待ち状態を解く。
+    // 完了時に解くと、その後に届いた古い内容でローカルが上書きされる
+    db.doc("acts/" + mk).set({ entries: acts[mk] || {} }).catch(function(err){
+      showError(err, "記録を保存できませんでした。");
+    }).then(function(){
+      pending--; renderAlerts();
+    });
+  }
+  function scheduleFlush(mk){
+    if(flushTimers[mk]) clearTimeout(flushTimers[mk]);
+    flushTimers[mk] = setTimeout(function(){ flushActs(mk); }, 700);
+  }
+
+  function pointsOf(gid){
+    var p = measures[gid] || {}, out = [], k;
+    for(k in p){
+      if(!Object.prototype.hasOwnProperty.call(p, k)) continue;
+      var d = parseYmd(k), v = Number(p[k]);
+      if(d && isFinite(v)) out.push({ d: d, v: v });
+    }
+    out.sort(function(a, b){ return a.d - b.d; });
+    return out;
+  }
+  function setMeasure(gid, d, v){
+    if(!measures[gid]) measures[gid] = {};
+    measures[gid][ymd(d)] = v;
+    holdDoc("measures", gid, { points: copy(measures[gid]) });
+    writeCache();
+    if(storage === "db" && db){
+      pending++; renderAlerts();
+      db.doc("measures/" + gid).set({ points: measures[gid] }).catch(function(err){
+        showError(err, "実測値を保存できませんでした。");
+      }).then(function(){ pending--; renderAlerts(); });
+    }
+  }
+
+  function reviewOf(wk){ return reviews[wk] || {}; }
+  function saveReview(wk, gid, item){
+    if(!reviews[wk]) reviews[wk] = {};
+    reviews[wk][gid] = item;
+    holdDoc("reviews", wk, { items: copy(reviews[wk]) });
+    writeCache();
+    if(storage === "db" && db){
+      pending++; renderAlerts();
+      db.doc("reviews/" + wk).set({ items: reviews[wk] }).catch(function(err){
+        showError(err, "ふりかえりを保存できませんでした。");
+      }).then(function(){ pending--; renderAlerts(); });
+    }
+  }
+
+  function newId(){
+    return "g" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+  function stripId(g){
+    var o = {}, k;
+    for(k in g){ if(Object.prototype.hasOwnProperty.call(g, k) && k !== "id") o[k] = g[k]; }
+    return o;
+  }
+  function indexOf(id){
+    for(var i = 0; i < goals.length; i++){ if(goals[i].id === id) return i; }
+    return -1;
+  }
+  function goalById(id){ var i = indexOf(id); return i < 0 ? null : goals[i]; }
+  function activeGoals(){
+    return goals.filter(function(g){ return g.status === "active"; })
+      .sort(function(a, b){ return (a.order || 0) - (b.order || 0); });
+  }
+  function saveGoal(g){
+    var i = indexOf(g.id);
+    if(i < 0) goals.push(g); else goals[i] = g;
+    holdDoc("goals", g.id, copy(stripId(g)));
+    writeCache();
+    if(storage === "db" && db){
+      pending++; renderAlerts();
+      db.doc("goals/" + g.id).set(stripId(g)).catch(function(err){
+        showError(err, "目標を保存できませんでした。");
+      }).then(function(){ pending--; renderAlerts(); });
+    }
+  }
+  function removeGoal(id){
+    goals = goals.filter(function(g){ return g.id !== id; });
+    delete measures[id];
+    holdDoc("goals", id, null);
+    holdDoc("measures", id, null);
+    writeCache();
+    if(storage === "db" && db){
+      pending++; renderAlerts();
+      db.doc("goals/" + id).delete().catch(function(err){
+        showError(err, "目標を削除できませんでした。");
+      }).then(function(){ pending--; renderAlerts(); });
+      db.doc("measures/" + id).delete().catch(function(){});
+    }
+  }
+
+  /* ================= 端末キャッシュ ================= */
+  function readCache(){
+    try{
+      var raw = localStorage.getItem(CACHE_KEY);
+      if(!raw) return;
+      var d = JSON.parse(raw);
+      if(d && d.goals) goals = d.goals;
+      if(d && d.acts) acts = d.acts;
+      if(d && d.measures) measures = d.measures;
+      if(d && d.reviews) reviews = d.reviews;
+    }catch(e){ /* 読めなければ空から始める */ }
+  }
+  function writeCache(){
+    try{
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        goals: goals, acts: acts, measures: measures, reviews: reviews
+      }));
+    }catch(e){ /* 保存できなくても動作は続ける */ }
+  }
+
+  /* ================= 文字列 ================= */
+  function esc(s){
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+  function val(v, unit){
+    var n = round1(Number(v));
+    return (isFinite(n) ? n : "–") + (unit ? esc(unit) : "");
+  }
+  function pct(p){ return Math.round(clamp(p, 0, 2) * 100) + "%"; }
+  /* ================= 軌道判定 =================
+     経過した日数ぶん進めているかを、現在地（pct）と予定地（expPct）で比べる */
+  function track(g){
+    var start = parseYmd(g.startDate) || today();
+    var due = parseYmd(g.dueDate) || addDays(start, 30);
+    var now = today();
+    var span = Math.max(1, diffDays(start, due));
+    var elapsed = clamp(diffDays(start, now), 0, span);
+    var r = {
+      expPct: elapsed / span, span: span, daysLeft: diffDays(now, due),
+      predDate: null, rate: 0, latest: null, pct: 0, state: "nodata"
+    };
+
+    if(g.kind === "measure"){
+      var s = Number(g.startValue), t = Number(g.targetValue);
+      if(!isFinite(s) || !isFinite(t) || s === t) return r;
+      var pts = pointsOf(g.id);
+      if(!pts.length) return r;
+      var latest = pts[pts.length - 1];
+      r.latest = latest;
+      r.pct = (latest.v - s) / (t - s);
+      r.rate = (latest.v - s) / Math.max(1, diffDays(start, latest.d));  // 1日あたり
+      if(r.pct >= 1){ r.state = "achieved"; r.predDate = latest.d; return r; }
+      var remain = t - latest.v;
+      if(r.rate !== 0 && (remain > 0) === (r.rate > 0)){
+        r.predDate = addDays(latest.d, Math.ceil(remain / r.rate));
+      }
+    }else{
+      var weekly = Math.max(1, Number(g.weekly) || 1);
+      var need = weekly * Math.max(1, span / 7);
+      var done = countActs(g.id, start, now);
+      r.pct = done / need;
+      r.done = done;
+      r.need = Math.round(need);
+      var perDay = elapsed > 0 ? done / elapsed : 0;
+      r.rate = perDay * 7;                                               // 週あたり
+      if(r.pct >= 1){ r.state = "achieved"; r.predDate = now; return r; }
+      if(perDay > 0) r.predDate = addDays(now, Math.ceil((need - done) / perDay));
+    }
+
+    if(!r.predDate){ r.state = "stalled"; return r; }
+    var gap = r.pct - r.expPct;
+    if(gap >= 0.05) r.state = "ahead";
+    else if(gap >= -0.08) r.state = "ontrack";
+    else if(gap >= -0.2) r.state = "warn";
+    else r.state = "behind";
+    return r;
+  }
+
+  var LABEL = {
+    achieved:"達成", ahead:"先行", ontrack:"順調",
+    warn:"やや遅れ", behind:"遅れ", stalled:"止まっている", nodata:"記録待ち"
+  };
+  function isBad(st){ return st === "warn" || st === "behind" || st === "stalled"; }
+  function isGood(st){ return st === "achieved" || st === "ahead"; }
+
+  // 連続して実行ゼロだった「終わった週」の数
+  function stalledWeeks(g){
+    var start = parseYmd(g.startDate) || today();
+    var ws = weekStart(today());
+    var n = 0;
+    for(var k = 1; k <= 24; k++){
+      var s = addDays(ws, -7 * k);
+      if(addDays(s, 6) < start) break;
+      if(countActs(g.id, s, addDays(s, 6)) === 0) n++; else break;
+    }
+    return n;
+  }
+  function retireDue(g){
+    var w = Number(g.retireWeeks) || 0;
+    return w > 0 && stalledWeeks(g) >= w;
+  }
+
+  /* ================= 共通の描画 ================= */
+  function showError(err, prefix){
+    lastError = prefix + (err && err.message ? "（" + err.message + "）" : "");
+    renderAlerts();
+  }
+  function renderAlerts(){
+    var h = "";
+    if(lastError){
+      h += '<div class="warn"><b>保存できていません。</b>' + esc(lastError) +
+           '記録は端末に残っているので、通信が戻れば続きから保存されます。</div>';
+    }
+    activeGoals().forEach(function(g){
+      if(!retireDue(g)) return;
+      h += '<div class="warn"><b>' + esc(g.title) + 'が' + stalledWeeks(g) + '週間止まっています。</b>' +
+           '自分で決めた撤退条件に達しました。やめるか、条件のほうを見直すか決めてください。' +
+           '<div class="acts">' +
+           '<button type="button" class="btn s d" data-retire="' + g.id + '">やめる</button>' +
+           '<button type="button" class="btn s q" data-edit="' + g.id + '">条件を見直す</button>' +
+           '</div></div>';
+    });
+    el.alerts.innerHTML = h;
+    el.state.textContent = pending > 0 ? "保存中" :
+      (storage === "db" ? "クラウドに保存" : "この端末に保存");
+  }
+
+  function trackLine(r){
+    var bad = isBad(r.state) ? " bad" : "";
+    var cur = clamp(r.pct, 0, 1) * 100;
+    var plan = clamp(r.expPct, 0, 1) * 100;
+    var h = '<div class="tr"><div class="cur' + bad + '" style="width:' + cur.toFixed(1) + '%"></div>' +
+            '<div class="plan" style="left:' + plan.toFixed(1) + '%"></div></div>';
+    h += '<div class="trl"><span>現在 <b>' + pct(r.pct) + '</b></span>' +
+         '<span class="pl">予定 ' + pct(r.expPct) + '</span><span>' +
+         (r.daysLeft >= 0 ? "残り " + r.daysLeft + "日" : (-r.daysLeft) + "日超過") + '</span></div>';
+    return h;
+  }
+
+  function say(g, r){
+    var due = parseYmd(g.dueDate);
+    if(r.state === "achieved"){
+      return '<p class="say"><b>到達しました。</b>次の目標に替えるか、維持する形に書き替えましょう。</p>';
+    }
+    if(r.state === "nodata"){
+      return '<p class="say">まだ実測値がありません。いまの数字をひとつ入れると軌道が出ます。</p>';
+    }
+    if(r.state === "stalled"){
+      return '<p class="say"><span class="bad">進んでいません。</span>このままでは期限までに届きません。' +
+             '今日の1手が重すぎないか見直してください。</p>';
+    }
+    var late = due && r.predDate ? diffDays(due, r.predDate) : 0;
+    var h = '<p class="say">このペースなら <b>' + md(r.predDate) + '</b> に到達';
+    if(due) h += '（期限は ' + md(due) + '）';
+    h += '。';
+    h += late > 0 ? ' <span class="bad">' + late + '日の遅れ</span>です。' : ' 間に合います。';
+    return h + '</p>';
+  }
+
+  /* ================= 立ち上げの28日 =================
+     最初の28日の一貫性が、その後の継続をもっとも強く予測するという報告がある。
+     その期間だけ、日ごとの実行を目盛りで見せる。 */
+  function rampDay(g){ return diffDays(parseYmd(g.startDate) || today(), today()) + 1; }
+  function inRamp(g){ var n = rampDay(g); return n >= 1 && n <= 28; }
+
+  function rulerHtml(g){
+    var start = parseYmd(g.startDate) || today();
+    var now = today();
+    var h = '<div class="ruler" role="img" aria-label="開始から28日間の実行">';
+    for(var i = 0; i < 28; i++){
+      var d = addDays(start, i);
+      var c = "";
+      if(d <= now){
+        var v = actVal(g.id, d);
+        c = v === 1 ? "full" : (v === 2 ? "half" : "miss");
+      }
+      h += '<i class="' + c + '"></i>';
+    }
+    return h + '</div>';
+  }
+
+  function rampHtml(){
+    var list = activeGoals().filter(inRamp);
+    if(!list.length) return "";
+    var h = '<div class="lab"><span>立ち上げの28日</span><span>残り</span></div>';
+    list.forEach(function(g){
+      var start = parseYmd(g.startDate) || today();
+      var n = rampDay(g);
+      var done = countActs(g.id, start, today());
+      h += '<div class="ramp"><div class="rh"><span class="rn">' + esc(g.title) + '</span>' +
+           '<span class="rd">' + (28 - n) + '日</span></div>';
+      h += rulerHtml(g);
+      h += '<div class="rh sub"><span class="rd">' + n + '日のうち ' + done + '日</span>' +
+           '<span class="rd">フル ' + countFull(g.id, start, today()) + '日</span></div>';
+      h += '</div>';
+    });
+    h += '<p class="rampnote">ここを揃えられるかが、半年後に続いているかをもっとも強く分けます。' +
+         '高さの低い目盛りは最低ラインだけの日です。それでも空白にはなりません。</p>';
+    return h;
+  }
+
+  /* ================= 今日 ================= */
+  function renderToday(){
+    if(!goals.length){ el.today.innerHTML = introHtml(); return; }
+    var list = activeGoals();
+    if(!list.length){
+      el.today.innerHTML = '<div class="intro"><h2>進行中の目標がありません</h2>' +
+        '<p>達成したものとやめたものは「目標」に残っています。次を立てましょう。</p>' +
+        '<div class="acts"><button type="button" class="btn" data-add="1">目標を立てる</button></div></div>';
+      return;
+    }
+    var d = today();
+    var done = 0;
+    list.forEach(function(g){ if(actOn(g.id, d)) done++; });
+
+    var h = '<div class="hero' + (done === list.length ? " all" : "") + '">';
+    h += '<div class="day">' + md(d) + '　' + DOW[d.getDay()] + '曜日</div>';
+    h += '<div class="fig"><b>' + done + '</b><span>/' + list.length + '</span></div>';
+    h += '<div class="cap">' + (done === list.length ? "今日の分は済みました" : "今日の1手のうち、済んだ数") + '</div>';
+    h += '</div>';
+
+    h += '<div class="lab"><span>今日やること</span><span>週の進み</span></div>';
+    list.forEach(function(g){ h += rowHtml(g, d); });
+    h += measureHtml(list);
+    h += rampHtml();
+    h += fixHtml(list);
+    el.today.innerHTML = h;
+  }
+
+  function rowHtml(g, d){
+    var v = actVal(g.id, d);
+    var r = track(g);
+    var ws = weekStart(d);
+    var wdone = countActs(g.id, ws, addDays(ws, 6));
+    var weekly = Math.max(1, Number(g.weekly) || 1);
+
+    var h = '<div class="row' + (v ? " on" : "") + (v === 2 ? " half" : "") +
+            (v && hit === g.id ? " hit" : "") + '">';
+    h += '<button type="button" class="box" data-act="' + g.id + '" aria-pressed="' + (v ? "true" : "false") +
+         '" aria-label="' + esc(g.doing || "今日の1手") + 'を' + (v ? "取り消す" : "済みにする") + '">' +
+         (v === 2 ? "–" : "✓") + '</button>';
+    h += '<div class="mid">';
+    h += '<div class="task">' + esc(v === 2 ? (g.floor || g.doing) : (g.doing || "今日の1手が未設定")) + '</div>';
+    h += '<div class="from">' + esc(g.title) +
+         (isBad(r.state) ? '　<span class="late">' + LABEL[r.state] + '</span>' : "") + '</div>';
+    if(!v && g.cue) h += '<div class="cue">' + esc(g.cue) + '</div>';
+    if(!v && g.why) h += '<div class="why">' + esc(g.why) + '</div>';
+    if(!v && g.floor){
+      h += '<div class="alt"><button type="button" class="link q" data-floor="' + g.id +
+           '">今日は最低ラインだけ（' + esc(g.floor) + '）</button></div>';
+    }
+    if(v){
+      h += '<div class="fix">';
+      h += '<button type="button" class="link q" data-set="' + g.id + ':0">取り消す</button>';
+      if(g.floor && v === 1){
+        h += '<button type="button" class="link q" data-set="' + g.id + ':2">最低ラインに変える</button>';
+      }
+      if(g.floor && v === 2){
+        h += '<button type="button" class="link q" data-set="' + g.id + ':1">フル達成に変える</button>';
+      }
+      h += '</div>';
+      if(v === 2) h += '<div class="cue">最低ラインで記録。空白にはなりません。</div>';
+    }
+    h += '</div>';
+    h += '<div class="cnt"><em>' + wdone + '</em>/' + weekly + '</div>';
+    h += '</div>';
+    return h;
+  }
+
+  function introHtml(){
+    var h = '<div class="intro">';
+    h += '<h2>続けられるかどうかは、<br>気力ではなく設計で決まる</h2>';
+    h += '<p>トレーニングを長く続けるために、3つだけ決めます。</p>';
+    h += '<ol><li>目標と期限、そして<b>なぜ</b>やるのか</li>' +
+         '<li>調子が悪い日でもできる<b>今日の1手</b></li>' +
+         '<li>いつ<b>やめるか</b>の条件</li></ol>';
+    h += '<p>あとは毎日1手に印をつけるだけです。遅れたら、アプリの側から目標を下げる提案が出ます。</p>';
+    h += '</div>';
+    h += '<div class="lab"><span>例から始める</span><span>期間</span></div>';
+    h += '<div class="picks">';
+    STARTERS.forEach(function(s, i){
+      h += '<button type="button" class="pick" data-starter="' + i + '">' + esc(s.title) +
+           '<span>' + Math.round(s.days / 30) + 'か月</span></button>';
+    });
+    h += '</div>';
+    h += '<div class="acts"><button type="button" class="btn" data-add="1">自分で書く</button></div>';
+    return h;
+  }
+  /* ================= 目標 ================= */
+  function renderGoals(){
+    if(!goals.length){ el.goals.innerHTML = introHtml(); return; }
+    var act = activeGoals();
+    var rest = goals.filter(function(g){ return g.status !== "active"; });
+    var h = '<div class="lab"><span>進行中 ' + act.length + '</span>' +
+            '<button type="button" class="act" data-add="1">目標を追加</button></div>';
+    if(act.length > 1){
+      h += '<p class="rampnote">いちばん上を主目標として扱います。今日の画面でも上に出ます。' +
+           '迷ったら、崩れたときに先に守るほうを上にしてください。</p>';
+    }
+    act.forEach(function(g, i){ h += goalHtml(g, i > 0); });
+    if(rest.length){
+      h += '<div class="lab"><span>終わった目標 ' + rest.length + '</span></div>';
+      rest.forEach(function(g){ h += goalHtml(g, false); });
+    }
+    el.goals.innerHTML = h;
+  }
+
+  function goalHtml(g, canUp){
+    var r = track(g);
+    var live = g.status === "active";
+    var openNow = !!shown[g.id];
+    var due = parseYmd(g.dueDate);
+    var st = g.status === "retired" ? "やめた" : (g.status === "achieved" ? "達成" : LABEL[r.state]);
+    var stc = g.status === "retired" ? "" : (isBad(r.state) ? " bad" : (isGood(r.state) ? " good" : ""));
+
+    var h = '<div class="goal' + (live ? "" : " off") + '">';
+    h += '<div class="gh"><div class="gt">' +
+         (g.emoji ? '<span class="mk" aria-hidden="true">' + esc(g.emoji) + '</span>' : "") +
+         esc(g.title) + '</div><div class="gs' + (live ? stc : "") + '">' + st + '</div></div>';
+    if(g.why) h += '<div class="why">' + esc(g.why) + '</div>';
+    h += '<div class="meta">' + (g.kind === "measure" ?
+         val(g.startValue, g.unit) + " → " + val(g.targetValue, g.unit) : "週" + (g.weekly || 1) + "回") +
+         '　/　期限 ' + (due ? ymd(due) : "未設定") +
+         (g.cue ? '　/　' + esc(g.cue) : "") + '</div>';
+
+    if(live){
+      h += trackLine(r);
+      h += say(g, r);
+      if(isBad(r.state)) h += adjustHtml(g, r);
+    }
+
+    h += '<div class="acts">';
+    h += '<button type="button" class="link" data-show="' + g.id + '">' +
+         (openNow ? "詳細を閉じる" : "詳細") + '</button>';
+    h += '<button type="button" class="link q" data-edit="' + g.id + '">編集</button>';
+    if(live && canUp) h += '<button type="button" class="link q" data-up="' + g.id + '">上へ</button>';
+    h += '</div>';
+
+    if(openNow) h += detailHtml(g, r, live);
+    h += '</div>';
+    return h;
+  }
+
+  // 忘れた日・押しまちがえた日を後から直す。押すごとに 未記録 → フル → 最低 → 未記録
+  var STRIP_DAYS = 14;
+  function stripHtml(g){
+    var now = today();
+    var h = '<div class="days">';
+    for(var i = STRIP_DAYS - 1; i >= 0; i--){
+      var d = addDays(now, -i);
+      var v = actVal(g.id, d);
+      var c = v === 1 ? " f" : (v === 2 ? " h" : "");
+      if(i === 0) c += " t";
+      h += '<button type="button" class="day7' + c + '" data-cycle="' + g.id + ':' + ymd(d) +
+           '" aria-label="' + (d.getMonth() + 1) + '月' + d.getDate() + '日（' + DOW[d.getDay()] +
+           '）の記録を変える">' +
+           '<span class="dd">' + d.getDate() + '</span>' +
+           '<span class="dm"></span></button>';
+    }
+    return h + '</div>';
+  }
+  function fixHtml(list){
+    if(!list.length) return "";
+    var now = today();
+    var h = '<div class="lab"><span>記録を直す</span><span>' +
+            mdShort(addDays(now, -(STRIP_DAYS - 1))) + ' – ' + mdShort(now) + '</span></div>';
+    list.forEach(function(g){
+      h += '<div class="ramp"><div class="rh"><span class="rn">' + esc(g.title) + '</span>' +
+           '<span class="rd">' + countActs(g.id, addDays(now, -(STRIP_DAYS - 1)), now) +
+           '/' + STRIP_DAYS + '日</span></div>';
+      h += stripHtml(g);
+      h += '</div>';
+    });
+    h += '<p class="fixnote">押すごとに 未記録 → フル達成 → 最低ラインだけ → 未記録 と変わります。' +
+         '塗りがフル、薄い四角が最低ラインだけの日です。忘れた日もここで足せます。</p>';
+    return h;
+  }
+  // 数値で測る目標は、毎日の入力を今日の画面に置く
+  function measureHtml(list){
+    var ms = list.filter(function(g){ return g.kind === "measure"; });
+    if(!ms.length) return "";
+    var now = today();
+    var h = '<div class="lab"><span>今日の数値</span><span>' + mdShort(now) + '</span></div>';
+    ms.forEach(function(g){
+      var pts = pointsOf(g.id);
+      var cur = measures[g.id] && measures[g.id][ymd(now)] != null ? measures[g.id][ymd(now)] :
+                (pts.length ? pts[pts.length - 1].v : "");
+      h += '<div class="mrow"><div class="f num"><label for="mv-' + g.id + '">' +
+           esc(g.title) + (g.unit ? "（" + esc(g.unit) + "）" : "") + '</label>' +
+           '<input type="number" step="any" id="mv-' + g.id + '" value="' + esc(cur) + '"></div>' +
+           '<button type="button" class="btn s" data-measure="' + g.id + '">記録</button></div>';
+    });
+    return h;
+  }
+
+  function detailHtml(g, r, live){
+    var h = "";
+    var unit = g.unit || "";
+    var start = parseYmd(g.startDate) || today();
+    var now = today();
+
+    if(g.kind === "measure"){
+      var pts = pointsOf(g.id);
+      h += sparkHtml(g, pts);
+      h += '<div class="figs">';
+      h += '<div><span class="k">開始</span><span class="v">' + val(g.startValue, unit) + '</span></div>';
+      h += '<div><span class="k">いま</span><span class="v">' +
+           (pts.length ? val(pts[pts.length - 1].v, unit) : "–") + '</span></div>';
+      h += '<div><span class="k">目標</span><span class="v">' + val(g.targetValue, unit) + '</span></div>';
+      h += '</div>';
+    }
+
+    var weekly = Math.max(1, Number(g.weekly) || 1);
+    var ws = weekStart(now);
+    var last4 = 0;
+    for(var w = 1; w <= 4; w++){
+      var s = addDays(ws, -7 * w);
+      last4 += countActs(g.id, s, addDays(s, 6));
+    }
+    var all = countActs(g.id, start, now);
+    var full = countFull(g.id, start, now);
+    h += '<div class="figs">';
+    h += '<div><span class="k">約束</span><span class="v">' + weekly + '<i>回/週</i></span></div>';
+    h += '<div><span class="k">直近4週</span><span class="v">' + round1(last4 / 4) + '<i>回/週</i></span></div>';
+    h += '<div><span class="k">通算</span><span class="v">' + all + '<i>回</i></span></div>';
+    h += '<div><span class="k">うちフル達成</span><span class="v">' + full + '<i>回</i></span></div>';
+    h += '</div>';
+    if(inRamp(g)){
+      h += '<div class="rampnote">立ち上げの28日（' + rampDay(g) + '日目）</div>';
+      h += rulerHtml(g);
+    }
+
+    h += '<p class="plan-note">今日の1手は「' + esc(g.doing || "未設定") + '」。' +
+         (g.floor ? '無理な日の最低ラインは「' + esc(g.floor) + '」。' : '最低ラインは決めていません。') +
+         (g.cue ? esc(g.cue) + 'で。' : "") +
+         ymd(start) + ' から始めて、' +
+         (Number(g.retireWeeks) ? g.retireWeeks + '週連続でゼロならやめる約束です。' : '撤退条件は決めていません。') +
+         '</p>';
+
+    if(g.revs && g.revs.length){
+      var back = -1;
+      for(var b = g.revs.length - 1; b >= 0; b--){
+        if(g.revs[b].field && !g.revs[b].undone){ back = b; break; }
+      }
+      h += '<div class="logs">';
+      for(var j = g.revs.length - 1; j >= 0; j--){
+        var e = g.revs[j];
+        h += '<div class="l"><time>' + esc(e.at) + '</time><span>' + esc(e.note) +
+             (j === back ? ' <button type="button" class="link q" data-undo="' + g.id + ':' + j +
+              '">元に戻す</button>' : "") + '</span></div>';
+      }
+      h += '</div>';
+    }
+
+    h += '<div class="acts">';
+    if(live){
+      h += '<button type="button" class="link q" data-achieve="' + g.id + '">達成にする</button>';
+      h += '<button type="button" class="link q" data-retire="' + g.id + '">この目標をやめる</button>';
+    }else{
+      h += '<button type="button" class="link q" data-reopen="' + g.id + '">進行中に戻す</button>';
+    }
+    h += '</div>';
+    return h;
+  }
+
+  function adjustHtml(g, r){
+    var h = '<p class="say">間に合わないなら、気力ではなく目標のほうを削ります。' +
+            '下げた記録は履歴に残るので、ごまかしにはなりません。</p><div class="acts">';
+    if(r.predDate){
+      h += '<button type="button" class="btn s q" data-extend="' + g.id + '">期限を ' +
+           mdShort(r.predDate) + ' に延ばす</button>';
+    }
+    if(g.kind === "measure"){
+      var reach = reachable(g, r);
+      if(reach !== null){
+        h += '<button type="button" class="btn s q" data-lower="' + g.id + '" data-to="' + reach +
+             '">目標を ' + val(reach, g.unit || "") + ' にする</button>';
+      }
+    }else{
+      var pace = Math.max(1, Math.round(r.rate || 0));
+      if(pace < (Number(g.weekly) || 1)){
+        h += '<button type="button" class="btn s q" data-lower="' + g.id + '" data-to="' + pace +
+             '">週 ' + pace + ' 回に下げる</button>';
+      }
+    }
+    h += '</div>';
+    return h;
+  }
+
+  // いまのペースで期限までに届く値（それが現目標より手前のときだけ返す）
+  function reachable(g, r){
+    if(!r.latest || !r.rate) return null;
+    var due = parseYmd(g.dueDate);
+    if(!due) return null;
+    var left = diffDays(r.latest.d, due);
+    if(left <= 0) return null;
+    var v = round1(r.latest.v + r.rate * left);
+    var t = Number(g.targetValue);
+    if(t > Number(g.startValue) ? v >= t : v <= t) return null;
+    return v;
+  }
+
+  function sparkHtml(g, pts){
+    if(!pts.length) return "";
+    var s = Number(g.startValue), t = Number(g.targetValue);
+    var start = parseYmd(g.startDate) || today();
+    var due = parseYmd(g.dueDate) || addDays(start, 30);
+    var vals = pts.map(function(p){ return p.v; }).concat([s, t]);
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    if(hi === lo){ hi = lo + 1; lo = lo - 1; }
+    var pad = (hi - lo) * 0.14;
+    lo -= pad; hi += pad;
+    var span = Math.max(1, diffDays(start, due));
+    var px = function(d){ return 1 + clamp(diffDays(start, d) / span, 0, 1) * (SPARK_W - 2); };
+    var py = function(v){ return 5 + (1 - (v - lo) / (hi - lo)) * (SPARK_H - 10); };
+
+    var line = [px(start).toFixed(1) + "," + py(s).toFixed(1)];
+    pts.forEach(function(p){ line.push(px(p.d).toFixed(1) + "," + py(p.v).toFixed(1)); });
+    var last = pts[pts.length - 1];
+
+    var h = '<svg class="spark" viewBox="0 0 ' + SPARK_W + ' ' + SPARK_H +
+            '" role="img" aria-label="実測値の推移">';
+    h += '<line x1="0" y1="' + py(t).toFixed(1) + '" x2="' + SPARK_W + '" y2="' + py(t).toFixed(1) +
+         '" stroke="var(--rule-2)" stroke-width="1" stroke-dasharray="2 3" fill="none"></line>';
+    h += '<polyline points="' + line.join(" ") + '" fill="none" stroke="var(--ink)" stroke-width="1.5" ' +
+         'stroke-linejoin="round" stroke-linecap="round"></polyline>';
+    h += '<circle cx="' + px(last.d).toFixed(1) + '" cy="' + py(last.v).toFixed(1) +
+         '" r="2.8" fill="var(--accent)"></circle>';
+    h += '</svg>';
+    h += '<div class="sparkl"><span>' + mdShort(start) + '</span><span>目標 ' +
+         val(t, g.unit || "") + '</span><span>' + mdShort(due) + '</span></div>';
+    return h;
+  }
+
+  /* ================= ふりかえり ================= */
+  var PROG = [{v:"back", t:"後退した"}, {v:"same", t:"変わらない"}, {v:"fwd", t:"進んだ"}];
+
+  // 日曜はその週が終わる日なので今週、月曜から土曜は直前に終わった週を対象にする
+  function reviewWeek(){
+    var n = today();
+    return ymd(n.getDay() === 0 ? weekStart(n) : addDays(weekStart(n), -7));
+  }
+  function unanswered(wk){
+    var r = reviewOf(wk), n = 0;
+    activeGoals().forEach(function(g){ if(!r[g.id]) n++; });
+    return n;
+  }
+  function renderBell(){
+    el.bell.hidden = !(activeGoals().length > 0 && unanswered(reviewWeek()) > 0);
+  }
+
+  function renderReview(){
+    var list = activeGoals();
+    if(!list.length){
+      el.review.innerHTML = '<div class="intro"><h2>ふりかえる目標がありません</h2>' +
+        '<p>目標を立てると、週に1度ここで3問だけふりかえれます。</p></div>';
+      return;
+    }
+    var wk = reviewWeek();
+    var ws = parseYmd(wk);
+    var r = reviewOf(wk);
+    var left = unanswered(wk);
+
+    var h = '<div class="hero">';
+    h += '<div class="day">' + mdShort(ws) + ' – ' + mdShort(addDays(ws, 6)) + ' の1週間</div>';
+    h += '<div class="fig"><b>' + (list.length - left) + '</b><span>/' + list.length + '</span></div>';
+    h += '<div class="cap">' + (left ? "記入すると、そのまま次の1手に反映されます" : "この週のふりかえりは済みました") + '</div>';
+    h += '</div>';
+
+    h += '<div class="lab"><span>3問だけ</span></div>';
+    list.forEach(function(g){ h += rvHtml(g, r[g.id]); });
+
+    var past = Object.keys(reviews).filter(function(k){ return k !== wk; }).sort().reverse().slice(0, 8);
+    if(past.length){
+      h += '<div class="lab"><span>これまでのふりかえり</span></div>';
+      past.forEach(function(k){ h += oldHtml(k); });
+    }
+    el.review.innerHTML = h;
+  }
+
+  function rvHtml(g, it){
+    var cur = it || {};
+    var h = '<div class="rv"><div class="rt">' + esc(g.title) +
+            (it ? '<em>記入済み</em>' : "") + '</div>';
+    h += '<div class="f"><label>この1週間は</label><div class="pickseg" data-prog="' + g.id + '">';
+    PROG.forEach(function(p){
+      h += '<button type="button" data-v="' + p.v + '" aria-pressed="' +
+           (cur.p === p.v ? "true" : "false") + '">' + p.t + '</button>';
+    });
+    h += '</div></div>';
+    h += '<div class="f"><label for="st-' + g.id + '">詰まったのは何か</label>' +
+         '<input type="text" id="st-' + g.id + '" maxlength="80" placeholder="出張で2回とばした" value="' +
+         esc(cur.stuck || "") + '"></div>';
+    h += '<div class="f"><label for="ch-' + g.id + '">来週の1手</label>' +
+         '<input type="text" id="ch-' + g.id + '" maxlength="60" value="' +
+         esc(cur.change != null ? cur.change : (g.doing || "")) + '">' +
+         '<p class="tip">書き替えると、そのまま今日の1手になります。</p></div>';
+    h += '<div class="acts"><button type="button" class="btn s" data-rvsave="' + g.id + '">保存する</button></div>';
+    h += '</div>';
+    return h;
+  }
+
+  function oldHtml(wk){
+    var ws = parseYmd(wk);
+    var items = reviews[wk] || {};
+    var h = '<div class="old"><div class="ow">' +
+            (ws ? mdShort(ws) + " – " + mdShort(addDays(ws, 6)) : esc(wk)) + '</div>';
+    Object.keys(items).forEach(function(gid){
+      var g = goalById(gid);
+      var it = items[gid] || {};
+      var p = PROG.filter(function(x){ return x.v === it.p; })[0];
+      h += '<div class="oi"><b>' + esc(g ? g.title : "削除された目標") + '</b>' +
+           (p ? '<i>/</i>' + p.t : "") +
+           (it.stuck ? '<i>/</i>' + esc(it.stuck) : "") + '</div>';
+    });
+    h += '</div>';
+    return h;
+  }
+  /* ================= 描画 ================= */
+  function render(){
+    renderAlerts();
+    renderBell();
+    if(tab === "today") renderToday();
+    else if(tab === "goals") renderGoals();
+    else renderReview();
+    shownDay = ymd(today());
+    el.note.textContent = "軌道は、経過した日数ぶん進めているかで判定します。" +
+      (storage === "db" ? "" : "記録はこの端末だけに保存しています。");
+    hit = null;
+  }
+
+  function setTab(t){
+    tab = t;
+    document.getElementById("view-today").hidden = (t !== "today");
+    document.getElementById("view-goals").hidden = (t !== "goals");
+    document.getElementById("view-review").hidden = (t !== "review");
+    var b = document.querySelectorAll(".nav button");
+    for(var i = 0; i < b.length; i++){
+      b[i].setAttribute("aria-selected", b[i].getAttribute("data-tab") === t ? "true" : "false");
+    }
+    render();
+    window.scrollTo(0, 0);
+  }
+
+  /* ================= フォーム ================= */
+  var editing = null, form = null;
+  var F = {
+    title: document.getElementById("f-title"),
+    why: document.getElementById("f-why"),
+    kind: document.getElementById("f-kind"),
+    kindtip: document.getElementById("f-kindtip"),
+    mwrap: document.getElementById("f-mwrap"),
+    start: document.getElementById("f-start"),
+    target: document.getElementById("f-target"),
+    unit: document.getElementById("f-unit"),
+    doing: document.getElementById("f-doing"),
+    floor: document.getElementById("f-floor"),
+    cue: document.getElementById("f-cue"),
+    weekly: document.getElementById("f-weekly"),
+    due: document.getElementById("f-due"),
+    retire: document.getElementById("f-retire"),
+    del: document.getElementById("f-delete"),
+    head: document.getElementById("ph")
+  };
+  var KINDTIP = {
+    action: "「週3でジムに通う」のように、積み上げた回数で測ります。",
+    measure: "「ベンチ80kg」「体脂肪18%」のように、数値の変化で測ります。"
+  };
+
+  function openSheet(g, preset){
+    editing = g ? g.id : null;
+    var src = g || preset || {};
+    form = {
+      title: src.title || "",
+      why: src.why || "",
+      kind: src.kind === "measure" ? "measure" : "action",
+      startValue: src.startValue != null ? src.startValue : 60,
+      targetValue: src.targetValue != null ? src.targetValue : 80,
+      unit: src.unit || "",
+      doing: src.doing || "",
+      floor: src.floor || "",
+      cue: src.cue || "",
+      weekly: src.weekly || 3,
+      dueDate: src.dueDate || ymd(addDays(today(), preset && preset.days ? preset.days : 90)),
+      retireWeeks: src.retireWeeks != null ? src.retireWeeks : 4
+    };
+    F.head.textContent = g ? "目標を編集" : "目標を追加";
+    F.del.hidden = !g;
+    F.del.textContent = "この目標と記録を削除する";
+    confirmed = false;
+    syncSheet();
+    el.sheet.hidden = false;
+    F.title.focus();
+  }
+  function closeSheet(){ el.sheet.hidden = true; editing = null; form = null; confirmed = false; }
+
+  // 測りかたを切り替えても入力中の文字を失わないよう、先に拾っておく
+  function readSheet(){
+    if(!form) return;
+    form.title = F.title.value;
+    form.why = F.why.value;
+    form.startValue = F.start.value;
+    form.targetValue = F.target.value;
+    form.unit = F.unit.value;
+    form.doing = F.doing.value;
+    form.floor = F.floor.value;
+    form.cue = F.cue.value;
+    form.weekly = F.weekly.value;
+    form.dueDate = F.due.value;
+    form.retireWeeks = F.retire.value;
+  }
+  function syncSheet(){
+    if(!form) return;
+    F.title.value = form.title;
+    F.why.value = form.why;
+    F.start.value = form.startValue;
+    F.target.value = form.targetValue;
+    F.unit.value = form.unit;
+    F.doing.value = form.doing;
+    F.floor.value = form.floor;
+    F.cue.value = form.cue;
+    F.weekly.value = form.weekly;
+    F.due.value = form.dueDate;
+    F.retire.value = String(form.retireWeeks);
+    F.mwrap.hidden = form.kind !== "measure";
+    F.kindtip.textContent = KINDTIP[form.kind];
+    var b = F.kind.querySelectorAll("button");
+    for(var i = 0; i < b.length; i++){
+      b[i].setAttribute("aria-pressed", b[i].getAttribute("data-kind") === form.kind ? "true" : "false");
+    }
+  }
+
+  function commitSheet(){
+    if(!form) return;
+    var title = F.title.value.trim();
+    if(!title){ F.title.focus(); return; }
+    var doing = F.doing.value.trim();
+    if(!doing){ F.doing.focus(); return; }
+    var due = F.due.value;
+    if(!parseYmd(due)){ F.due.focus(); return; }
+    var kind = form.kind;
+    var sv = Number(F.start.value), tv = Number(F.target.value);
+    if(kind === "measure" && (!isFinite(sv) || !isFinite(tv) || sv === tv)){ F.target.focus(); return; }
+    var weekly = clamp(Math.round(Number(F.weekly.value) || 3), 1, 7);
+    var unit = F.unit.value.trim();
+
+    var g = editing ? goalById(editing) : null;
+    var next = g ? JSON.parse(JSON.stringify(g)) : {
+      id: newId(), startDate: ymd(today()), status: "active", revs: [],
+      order: goals.length ? Math.max.apply(null, goals.map(function(x){ return x.order || 0; })) + 1 : 0
+    };
+    if(g){
+      if(g.dueDate !== due){
+        logRev(next, "期限を " + g.dueDate + " から " + due + " に変更", "dueDate", g.dueDate);
+      }
+      if(kind === "measure" && Number(g.targetValue) !== tv){
+        logRev(next, "目標値を " + g.targetValue + (g.unit || "") + " から " + tv + unit + " に変更",
+               "targetValue", g.targetValue);
+      }
+      if(Number(g.weekly) !== weekly){
+        logRev(next, "週の回数を " + g.weekly + " から " + weekly + " に変更", "weekly", g.weekly);
+      }
+    }
+
+    next.title = title;
+    next.why = F.why.value.trim();
+    next.kind = kind;
+    next.unit = kind === "measure" ? unit : "";
+    next.startValue = kind === "measure" ? sv : null;
+    next.targetValue = kind === "measure" ? tv : null;
+    next.doing = doing;
+    next.floor = F.floor.value.trim();
+    next.cue = F.cue.value.trim();
+    next.weekly = weekly;
+    next.dueDate = due;
+    next.retireWeeks = Number(F.retire.value) || 0;
+
+    saveGoal(next);
+    closeSheet();
+    render();
+  }
+
+  /* ================= 目標の調整 ================= */
+  // field と from を持つ記録は、あとから元に戻せる
+  function logRev(g, note, field, from){
+    var e = { at: ymd(today()), note: note };
+    if(field){ e.field = field; e.from = from; }
+    g.revs = (g.revs || []).concat([e]);
+  }
+  function undoRev(id, i){
+    var g = goalById(id);
+    if(!g || !g.revs || !g.revs[i] || !g.revs[i].field || g.revs[i].undone) return;
+    var e = g.revs[i];
+    g[e.field] = e.from;
+    e.undone = true;
+    logRev(g, "「" + e.note + "」を取り消した");
+    saveGoal(g);
+    render();
+  }
+  function extendDue(id){
+    var g = goalById(id);
+    if(!g) return;
+    var r = track(g);
+    if(!r.predDate) return;
+    var to = ymd(r.predDate);
+    logRev(g, "期限を " + g.dueDate + " から " + to + " に延ばした", "dueDate", g.dueDate);
+    g.dueDate = to;
+    saveGoal(g);
+    render();
+  }
+  function lowerTarget(id, to){
+    var g = goalById(id);
+    if(!g) return;
+    if(g.kind === "measure"){
+      logRev(g, "目標値を " + g.targetValue + (g.unit || "") + " から " + to + (g.unit || "") + " に下げた",
+             "targetValue", g.targetValue);
+      g.targetValue = Number(to);
+    }else{
+      logRev(g, "週の回数を " + g.weekly + " から " + to + " に下げた", "weekly", g.weekly);
+      g.weekly = clamp(Math.round(Number(to)), 1, 7);
+    }
+    saveGoal(g);
+    render();
+  }
+  // 進行中の目標を1つ上に動かし、順番を0から振り直す
+  function moveUp(id){
+    var list = activeGoals();
+    var i = -1;
+    for(var k = 0; k < list.length; k++){ if(list[k].id === id) i = k; }
+    if(i <= 0) return;
+    var tmp = list[i - 1];
+    list[i - 1] = list[i];
+    list[i] = tmp;
+    list.forEach(function(g, n){
+      if(g.order !== n){ g.order = n; saveGoal(g); }
+    });
+    render();
+  }
+  function setStatus(id, st, note){
+    var g = goalById(id);
+    if(!g) return;
+    logRev(g, note, "status", g.status);
+    g.status = st;
+    saveGoal(g);
+    render();
+  }
+
+  /* ================= 操作 ================= */
+  document.addEventListener("click", function(ev){
+    var t = ev.target && ev.target.closest ? ev.target.closest("button") : null;
+    if(!t) return;
+    var v;
+
+    if((v = t.getAttribute("data-tab"))){ setTab(v); return; }
+    if(t.getAttribute("data-add")){ openSheet(null, null); return; }
+    if((v = t.getAttribute("data-starter")) != null){
+      var s = STARTERS[Number(v)];
+      if(s) openSheet(null, s);
+      return;
+    }
+    if((v = t.getAttribute("data-act"))){
+      var d = today();
+      setAct(v, d, actVal(v, d) ? 0 : 1);
+      hit = v;
+      render();
+      return;
+    }
+    if((v = t.getAttribute("data-set"))){
+      var sp = v.split(":");
+      setAct(sp[0], today(), Number(sp[1]));
+      hit = sp[0];
+      render();
+      return;
+    }
+    if((v = t.getAttribute("data-cycle"))){
+      var cp = v.split(":");
+      var cd = parseYmd(cp[1]);
+      if(cd){
+        var cv = actVal(cp[0], cd);
+        setAct(cp[0], cd, cv === 0 ? 1 : (cv === 1 ? 2 : 0));
+        render();
+      }
+      return;
+    }
+    if((v = t.getAttribute("data-undo"))){
+      var np = v.split(":");
+      undoRev(np[0], Number(np[1]));
+      return;
+    }
+    if((v = t.getAttribute("data-floor"))){
+      var fd = today();
+      setAct(v, fd, actVal(v, fd) === 2 ? 0 : 2);
+      hit = v;
+      render();
+      return;
+    }
+    if((v = t.getAttribute("data-show"))){ shown[v] = !shown[v]; render(); return; }
+    if((v = t.getAttribute("data-up"))){ moveUp(v); return; }
+    if((v = t.getAttribute("data-edit"))){ openSheet(goalById(v), null); return; }
+    if((v = t.getAttribute("data-measure"))){
+      var inp = document.getElementById("mv-" + v);
+      if(inp && inp.value !== "" && isFinite(Number(inp.value))){
+        setMeasure(v, today(), Number(inp.value));
+        render();
+      }
+      return;
+    }
+    if((v = t.getAttribute("data-extend"))){ extendDue(v); return; }
+    if((v = t.getAttribute("data-lower"))){ lowerTarget(v, t.getAttribute("data-to")); return; }
+    if((v = t.getAttribute("data-achieve"))){ setStatus(v, "achieved", "達成にした"); return; }
+    if((v = t.getAttribute("data-retire"))){ setStatus(v, "retired", "やめた"); return; }
+    if((v = t.getAttribute("data-reopen"))){ setStatus(v, "active", "進行中に戻した"); return; }
+
+    if((v = t.getAttribute("data-rvsave"))){
+      var wk = reviewWeek();
+      var sel = document.querySelector('[data-prog="' + v + '"] button[aria-pressed="true"]');
+      var stuck = document.getElementById("st-" + v);
+      var chg = document.getElementById("ch-" + v);
+      var item = {
+        p: sel ? sel.getAttribute("data-v") : "",
+        stuck: stuck ? stuck.value.trim() : "",
+        change: chg ? chg.value.trim() : ""
+      };
+      saveReview(wk, v, item);
+      var g = goalById(v);
+      if(g && item.change && item.change !== g.doing){
+        logRev(g, "今日の1手を「" + g.doing + "」から「" + item.change + "」に変えた", "doing", g.doing);
+        g.doing = item.change;
+        saveGoal(g);
+      }
+      render();
+      return;
+    }
+
+    /* ふりかえりの3択 */
+    if(t.parentNode && t.parentNode.getAttribute && t.parentNode.getAttribute("data-prog")){
+      var sibs = t.parentNode.querySelectorAll("button");
+      for(var i = 0; i < sibs.length; i++){
+        sibs[i].setAttribute("aria-pressed", sibs[i] === t ? "true" : "false");
+      }
+      return;
+    }
+
+    /* フォーム内 */
+    if((v = t.getAttribute("data-kind")) && form){ readSheet(); form.kind = v; syncSheet(); return; }
+    if(t.id === "f-cancel"){ closeSheet(); return; }
+    if(t.id === "f-save"){ commitSheet(); return; }
+    if(t.id === "f-delete" && editing){
+      if(confirmed){
+        removeGoal(editing);
+        closeSheet();
+        render();
+      }else{
+        confirmed = true;
+        t.textContent = "本当に削除する（もう一度押す）";
+      }
+      return;
+    }
+  });
+
+  el.sheet.addEventListener("click", function(ev){
+    if(ev.target === el.sheet) closeSheet();
+  });
+  document.addEventListener("keydown", function(ev){
+    if(ev.key === "Escape" && !el.sheet.hidden) closeSheet();
+  });
+
+  /* ================= 日付が変わったら作り直す =================
+     開いたまま日付をまたいでも、今日の欄が前日のまま残らないようにする */
+  function refreshIfStale(){
+    if(shownDay && ymd(today()) !== shownDay) render();
+  }
+  document.addEventListener("visibilitychange", function(){
+    if(!document.hidden) refreshIfStale();
+  });
+  window.addEventListener("focus", refreshIfStale);
+  setInterval(refreshIfStale, 60000);
+
+  /* ================= 起動 ================= */
+  readCache();
+  monthsLoaded[monthKey(today())] = true;
+  setTab("today");
+
+  function applyGoals(snap){
+    var map = {};
+    snap.forEach(function(doc){ map[doc.id] = doc.data() || {}; });
+    mergeDocs("goals", map);
+    var list = [];
+    Object.keys(map).forEach(function(id){
+      var d = copy(map[id]);
+      d.id = id;
+      if(!d.status) d.status = "active";
+      list.push(d);
+    });
+    goals = list;
+    writeCache();
+    render();
+  }
+  function applyMeasures(snap){
+    var map = {};
+    snap.forEach(function(doc){ map[doc.id] = doc.data() || {}; });
+    mergeDocs("measures", map);
+    var m = {};
+    Object.keys(map).forEach(function(id){
+      var d = map[id] || {};
+      m[id] = d.points && typeof d.points === "object" ? copy(d.points) : {};
+    });
+    measures = m;
+    writeCache();
+    render();
+  }
+  function applyReviews(snap){
+    var map = {};
+    snap.forEach(function(doc){ map[doc.id] = doc.data() || {}; });
+    mergeDocs("reviews", map);
+    var r = {};
+    Object.keys(map).forEach(function(id){
+      var d = map[id] || {};
+      r[id] = d.items && typeof d.items === "object" ? copy(d.items) : {};
+    });
+    reviews = r;
+    writeCache();
+    render();
+  }
+  function fetchMonth(mk){
+    if(monthsLoaded[mk] || !db) return;
+    monthsLoaded[mk] = true;
+    db.doc("acts/" + mk).get().then(function(snap){
+      if(snap.exists){
+        var d = snap.data() || {};
+        acts[mk] = mergeActs(mk, d.entries && typeof d.entries === "object" ? d.entries : {});
+      }
+      writeCache();
+      render();
+    }).catch(function(){ monthsLoaded[mk] = false; });
+  }
+
+  if(window.claude && typeof window.claude.use === "function"){
+    window.claude.use("db").then(function(d){
+      if(!d) return;                        // 使えない場合は端末保存のまま動かす
+      db = d;
+      storage = "db";
+
+      db.collection("goals").onSnapshot(applyGoals, function(err){
+        showError(err, "目標の同期が止まりました。");
+      });
+      db.collection("measures").onSnapshot(applyMeasures, function(err){
+        showError(err, "実測値の同期が止まりました。");
+      });
+      db.collection("reviews").onSnapshot(applyReviews, function(err){
+        showError(err, "ふりかえりの同期が止まりました。");
+      });
+
+      var mk = monthKey(today());
+      db.doc("acts/" + mk).onSnapshot(function(snap){
+        var data = snap.exists ? (snap.data() || {}) : {};
+        var incoming = data.entries && typeof data.entries === "object" ? data.entries : {};
+        acts[mk] = mergeActs(mk, incoming);   // 直近の自分の変更は残る
+        writeCache();
+        render();
+      }, function(err){
+        showError(err, "今月の記録の同期が止まりました。");
+      });
+
+      for(var i = 1; i < ACT_MONTHS; i++) fetchMonth(monthKey(addMonths(today(), -i)));
+      render();
+    }).catch(function(){ /* 端末保存のまま動かす */ });
+  }
+})();
+</script>
+<script>
+if("serviceWorker" in navigator){
+  window.addEventListener("load", function(){
+    navigator.serviceWorker.register("./sw.js").catch(function(){});
+  });
+}
+</script>
+</body>
+</html>
